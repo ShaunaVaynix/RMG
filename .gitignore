@@ -1,4 +1,3 @@
-vki/
 venv/
 __pycache__/
 db.sqlite3
