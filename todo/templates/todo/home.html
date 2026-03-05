@@ -1,0 +1,197 @@
+{% extends 'base2.html' %}
+
+{% block title %}Home - MyApp{% endblock %}
+
+{% block content %}
+
+<!-- HEADER -->
+<header class="bg-dark text-white py-3 mb-4">
+    <div class="container d-flex justify-content-between align-items-center">
+        <h3 class="mb-0">MyApp</h3>
+        <nav>
+            <a href="{% url 'home' %}" class="text-white mx-2">Home</a>
+            <a href="#features" class="text-white mx-2">Features</a>
+            <a href="#about" class="text-white mx-2">About</a>
+            <a href="#" class="text-white mx-2" data-bs-toggle="modal" data-bs-target="#authModal">Login</a>
+        </nav>
+    </div>
+</header>
+
+<!-- HERO -->
+<section class="text-center my-5">
+    <div class="glass-card col-md-10 col-lg-8 mx-auto py-5">
+        <h1 class="mb-3">Welcome to MyApp</h1>
+        <p class="mb-4">Your modern platform for managing tasks, projects, and productivity with style. Enjoy dark mode, glassmorphism, and smooth UI experience.</p>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer class="bg-dark text-white py-4 mt-5">
+    <div class="container text-center">
+        <p class="mb-0">&copy; {{ year }} MyApp. All rights reserved.</p>
+        <small>Made with ❤️ using Django & Bootstrap</small>
+    </div>
+</footer>
+
+<!-- LOGIN / REGISTER MODAL -->
+<div class="modal fade" id="authModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-white p-4 rounded-4">
+      <div class="modal-header border-0">
+        <h5 class="modal-title" id="authModalTitle">Login</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        <!-- LOGIN FORM -->
+        <form id="loginForm" class="d-block position-relative">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" name="username" class="form-control rounded-pill bg-dark text-white border-info px-3 py-2" required>
+          </div>
+          <div class="mb-3 position-relative">
+            <label class="form-label">Password</label>
+            <input type="password" name="password" id="login-password" class="form-control rounded-pill bg-dark text-white border-info px-3 py-2" required>
+            <i class="bi bi-eye position-absolute" style="top:38px; right:15px; cursor:pointer;" onclick="togglePassword('login-password')"></i>
+          </div>
+          <button type="submit" class="btn btn-info w-100 rounded-pill fw-bold">Login</button>
+
+          <!-- Bouncing dots loader -->
+          <div id="loginLoader" class="dots-loader d-none mt-3 text-center">
+            <span></span><span></span><span></span>
+          </div>
+        </form>
+
+        <!-- REGISTER FORM -->
+        <form id="registerForm" class="d-none position-relative" method="POST" action="{% url 'register' %}">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Full Name</label>
+            <input type="text" name="first_name" class="form-control rounded-pill bg-dark text-white border-info px-3 py-2" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input type="email" name="email" class="form-control rounded-pill bg-dark text-white border-info px-3 py-2" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" name="username" class="form-control rounded-pill bg-dark text-white border-info px-3 py-2" required>
+          </div>
+          <div class="mb-3 position-relative">
+            <label class="form-label">Password</label>
+            <input type="password" name="password1" id="reg-password1" class="form-control rounded-pill bg-dark text-white border-info px-3 py-2" required>
+            <i class="bi bi-eye position-absolute" style="top:38px; right:15px; cursor:pointer;" onclick="togglePassword('reg-password1')"></i>
+          </div>
+          <div class="mb-3 position-relative">
+            <label class="form-label">Confirm Password</label>
+            <input type="password" name="password2" id="reg-password2" class="form-control rounded-pill bg-dark text-white border-info px-3 py-2" required>
+            <i class="bi bi-eye position-absolute" style="top:38px; right:15px; cursor:pointer;" onclick="togglePassword('reg-password2')"></i>
+          </div>
+          <button type="submit" class="btn btn-info w-100 rounded-pill fw-bold">Register</button>
+
+          <div id="registerLoader" class="dots-loader d-none mt-3 text-center">
+            <span></span><span></span><span></span>
+          </div>
+        </form>
+
+        <div class="text-center mt-3" id="toggleAuthText">
+          <small>Don't have an account? <a href="#" id="switchToRegister">Register here</a></small>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL / FORM JS -->
+<script>
+function togglePassword(id){
+    const input = document.getElementById(id);
+    input.type = input.type === "password" ? "text" : "password";
+}
+
+// Switch login/register
+document.getElementById("switchToRegister").addEventListener("click", function(e){
+    e.preventDefault();
+    document.getElementById("loginForm").classList.add("d-none");
+    document.getElementById("registerForm").classList.remove("d-none");
+    document.getElementById("authModalTitle").innerText = "Register";
+    document.getElementById("toggleAuthText").innerHTML = 'Already have an account? <a href="#" id="switchToLogin">Login here</a>';
+
+    document.getElementById("switchToLogin").addEventListener("click", function(e){
+        e.preventDefault();
+        document.getElementById("loginForm").classList.remove("d-none");
+        document.getElementById("registerForm").classList.add("d-none");
+        document.getElementById("authModalTitle").innerText = "Login";
+        document.getElementById("toggleAuthText").innerHTML = 'Don\'t have an account? <a href="#" id="switchToRegister">Register here</a>';
+    });
+});
+
+// AJAX login with bouncing dots loader
+document.getElementById("loginForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    const form = this;
+    const formData = new FormData(form);
+
+    // show loader
+    document.getElementById("loginLoader").classList.remove("d-none");
+
+    fetch("{% url 'login' %}", {
+        method: "POST",
+        body: formData
+    })
+    .then(res => {
+        if(res.redirected){
+            window.location.href = res.url;
+        } else {
+            document.getElementById("loginLoader").classList.add("d-none");
+            return res.text();
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        document.getElementById("loginLoader").classList.add("d-none");
+    });
+});
+</script>
+
+<!-- MODERN BOUNCING DOTS CSS -->
+<style>
+.dots-loader {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  height: 20px;
+}
+.dots-loader span {
+  width: 10px;
+  height: 10px;
+  background-color: #0dcaf0;
+  border-radius: 50%;
+  display: inline-block;
+  animation: bounce 0.6s infinite alternate;
+}
+.dots-loader span:nth-child(2) { animation-delay: 0.2s; }
+.dots-loader span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bounce {
+  from { transform: translateY(0); opacity: 0.7; }
+  to { transform: translateY(-10px); opacity: 1; }
+}
+
+/* Glass style inputs */
+input.form-control {
+  backdrop-filter: blur(10px);
+  border-width: 2px;
+}
+button.btn-info {
+  transition: all 0.3s ease;
+}
+button.btn-info:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(13, 202, 240, 0.4);
+}
+</style>
+
+{% endblock %}

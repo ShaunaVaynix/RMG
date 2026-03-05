@@ -1,0 +1,30 @@
+<!-- templates/login.html -->
+{% extends "base2.html" %}
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="glass-card">
+            <h3 class="text-center mb-4 fw-bold">Login</h3>
+            <form method="POST">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label">Username</label>
+                    <input type="text" name="username" class="form-control" required>
+                </div>
+                <div class="mb-3 position-relative">
+                    <label class="form-label">Password</label>
+                    <input type="password" name="password" id="login-password" class="form-control" required>
+                    <i class="bi bi-eye position-absolute" style="top:38px; right:10px;"
+                       onclick="togglePassword('login-password','login-eye')" id="login-eye"></i>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Login</button>
+            </form>
+            <div class="text-center mt-3">
+                <small>Don't have an account? <a href="{% url 'register' %}">Register here</a></small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

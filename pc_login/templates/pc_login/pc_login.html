@@ -1,0 +1,77 @@
+{% extends 'base2.html' %}
+{% block title %}PC Login - PC Shop{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-center align-items-center" style="height:80vh;">
+  <div class="card shadow-lg p-4 bg-dark text-white" style="width: 350px;">
+    <h4 class="text-center mb-4">PC Login</h4>
+
+    <form id="pcLoginForm">
+      <div class="mb-3">
+        <label for="username">Username</label>
+        <input type="text" id="username" class="form-control" placeholder="Enter username" required>
+      </div>
+
+      <div class="mb-3">
+        <label for="password">Password</label>
+        <input type="password" id="password" class="form-control" placeholder="Enter password" required>
+      </div>
+
+      <div class="mb-3">
+        <label for="pc_id">PC Seat</label>
+        <input type="text" id="pc_id" class="form-control" list="pcList" placeholder="Ex: VIP1" required>
+        <datalist id="pcList">
+          {% for seat in reserved_seats %}
+            <option value="{{ seat }}"></option>
+          {% endfor %}
+        </datalist>
+      </div>
+
+      <button type="submit" class="btn btn-success w-100">Login</button>
+    </form>
+
+    <div id="loginMsg" class="mt-3 text-center"></div>
+  </div>
+</div>
+
+<script>
+document.getElementById('pcLoginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
+    let pc_id = document.getElementById('pc_id').value.trim();
+    const msg = document.getElementById('loginMsg');
+    msg.innerHTML = '';
+
+    if(!username || !password || !pc_id){
+        msg.innerHTML = '<span class="text-danger">Please fill all fields!</span>';
+        return;
+    }
+
+    // Normalize PC ID
+    pc_id = pc_id.replace(/[-\s]/g, '').toUpperCase();
+
+    try {
+        const res = await fetch("{% url 'pc_login_api' %}", {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username, password, pc_id})
+        });
+
+        const data = await res.json();
+
+        if(data.success){
+            msg.innerHTML = '<span class="text-success">Login successful! Redirecting...</span>';
+            // Redirect to dashboard after 1 second
+            setTimeout(() => window.location.href = data.redirect_url, 1000);
+        } else {
+            msg.innerHTML = `<span class="text-danger">${data.error}</span>`;
+        }
+    } catch(err){
+        console.error(err);
+        msg.innerHTML = '<span class="text-danger">Server error. Try again.</span>';
+    }
+});
+</script>
+{% endblock %}

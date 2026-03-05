@@ -1,0 +1,272 @@
+{% extends 'base.html' %}
+{% block title %}Computers - PC Shop{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 id="roomTitle" class="text-info">VIP Room</h3>
+    <div>
+      <button class="btn btn-info me-2" onclick="prevRoom()">← Prev</button>
+      <button class="btn btn-info" onclick="nextRoom()">Next →</button>
+    </div>
+</div>
+
+<!-- SEARCH & FILTER -->
+<div class="row mb-3">
+    <div class="col-md-4">
+        <input type="text" id="searchPC" class="form-control" placeholder="Search by ID or specs">
+    </div>
+    <div class="col-md-3">
+        <select id="filterStatus" class="form-select">
+            <option value="">All Status</option>
+            <option>Available</option>
+            <option>In Use</option>
+            <option>Reserved</option>
+            <option>Offline</option>
+            <option>Maintenance</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-info w-100" onclick="applyFilter()">Filter</button>
+    </div>
+</div>
+
+<div id="roomStats" class="mb-3"></div>
+<div class="row" id="pcGrid"></div>
+
+<!-- MODAL -->
+<div class="modal fade" id="pcModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-white">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTitle"></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p><strong>Room:</strong> <span id="modalRoom"></span></p>
+        <p><strong>ID:</strong> <span id="modalId"></span></p>
+        <p><strong>Specs:</strong> <span id="modalSpecs"></span></p>
+        <p><strong>Status:</strong>
+          <select id="modalStatusSelect" class="form-select w-50"></select>
+        </p>
+        <button class="btn btn-success mt-2" onclick="saveStatus()">Update Status</button>
+        <p class="mt-3"><strong>Maintenance:</strong></p>
+        <ul id="modalMaintenance"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.pc-card {
+    position: relative;
+    border-radius: 10px;
+    transition: transform 0.2s;
+    cursor: pointer;
+}
+.pc-card:hover { transform: scale(1.05); }
+.pc-number {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    background: #ffc107;
+    color: #000;
+    font-size: 0.75rem;
+    font-weight: bold;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.card-title {
+    margin-top: 10px;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+</style>
+
+<script>
+let computers = [];
+const rooms = ["VIP","Gaming","Regular","Streaming"];
+let currentRoomIndex = 0;
+
+// Fetch computers
+function fetchComputers(){
+    fetch("/api/get_computers_json/")
+    .then(res => res.json())
+    .then(data => {
+        computers = [];
+        for(let room in data){
+            data[room].forEach(pc => {
+                computers.push({
+                    room: room,
+                    id: pc.pc_id,
+                    specs: pc.specs,
+                    status: pc.status,
+                    position: pc.position ?? 0
+                });
+            });
+        }
+        renderComputers();
+    })
+    .catch(console.error);
+}
+
+// Get number for top-left badge
+function getPCNumber(pc){
+    const sameRoom = computers.filter(c => c.room===pc.room)
+                              .sort((a,b)=> (a.position ?? 0)-(b.position ?? 0));
+    return sameRoom.findIndex(c => c.id===pc.id) + 1;
+}
+
+// Map status to badge color
+function getBadgeColor(status){
+    if(status==="Available") return "bg-primary";    // blue
+    if(status==="In Use") return "bg-success";      // green
+    if(status==="Reserved") return "bg-warning";    // orange
+    if(status==="Maintenance") return "bg-dark";    // dark
+    if(status==="Offline") return "bg-secondary";   // gray
+    return "bg-secondary";
+}
+
+// Render PCs
+function renderComputers(){
+    const grid = document.getElementById("pcGrid");
+    grid.innerHTML = "";
+    const currentRoom = rooms[currentRoomIndex];
+
+    const roomPCs = computers.filter(pc => pc.room === currentRoom)
+                             .sort((a,b)=> (a.position ?? 0)-(b.position ?? 0));
+
+    roomPCs.forEach(pc => {
+        const badgeColor = getBadgeColor(pc.status);
+        const number = getPCNumber(pc);
+
+        grid.innerHTML += `
+        <div class="col-md-3 mb-3">
+          <div class="card bg-dark text-white pc-card h-100" onclick="openModal('${pc.id}')">
+            <div class="pc-number">${number}</div>
+            <div class="card-body text-center">
+              <h5 class="card-title">${pc.room}</h5>
+              <p>${pc.specs}</p>
+              <span class="badge ${badgeColor}">${pc.status}</span>
+            </div>
+          </div>
+        </div>`;
+    });
+
+    updateStats();
+}
+
+// Search & filter
+function applyFilter(){
+    const search = document.getElementById("searchPC").value.toLowerCase();
+    const status = document.getElementById("filterStatus").value;
+    const grid = document.getElementById("pcGrid");
+    grid.innerHTML="";
+    computers
+    .filter(pc => pc.room === rooms[currentRoomIndex])
+    .filter(pc => 
+        (!search || pc.id.toLowerCase().includes(search) || pc.specs.toLowerCase().includes(search)) &&
+        (!status || pc.status === status)
+    )
+    .sort((a,b)=> (a.position ?? 0)-(b.position ?? 0))
+    .forEach(pc => {
+        const badgeColor = getBadgeColor(pc.status);
+        const number = getPCNumber(pc);
+
+        grid.innerHTML += `
+        <div class="col-md-3 mb-3">
+          <div class="card bg-dark text-white pc-card h-100" onclick="openModal('${pc.id}')">
+            <div class="pc-number">${number}</div>
+            <div class="card-body text-center">
+              <h5 class="card-title">${pc.room}</h5>
+              <p>${pc.specs}</p>
+              <span class="badge ${badgeColor}">${pc.status}</span>
+            </div>
+          </div>
+        </div>`;
+    });
+
+    updateStats();
+}
+
+// Stats
+function updateStats(){
+    const current = computers.filter(pc => pc.room === rooms[currentRoomIndex]);
+    const total = current.length;
+    const available = current.filter(pc=>pc.status==="Available").length;
+    document.getElementById("roomStats").innerHTML = `
+      <div class="alert alert-secondary">
+        Total PCs: <strong>${total}</strong> |
+        Available: <strong>${available}</strong>
+      </div>`;
+}
+
+// Room nav
+function nextRoom(){
+    currentRoomIndex = (currentRoomIndex+1)%rooms.length;
+    document.getElementById("roomTitle").innerText = rooms[currentRoomIndex]+" Room";
+    renderComputers();
+}
+function prevRoom(){
+    currentRoomIndex = (currentRoomIndex-1+rooms.length)%rooms.length;
+    document.getElementById("roomTitle").innerText = rooms[currentRoomIndex]+" Room";
+    renderComputers();
+}
+
+// Modal
+function openModal(id){
+    const pc = computers.find(p=>p.id===id);
+    if(!pc) return;
+    const number = getPCNumber(pc);
+    document.getElementById("modalTitle").innerText="PC Details - "+pc.room;
+    document.getElementById("modalRoom").innerText=pc.room;
+    document.getElementById("modalId").innerText=pc.id;
+    document.getElementById("modalSpecs").innerText=pc.specs;
+
+    const statusSelect = document.getElementById("modalStatusSelect");
+    statusSelect.innerHTML = "";
+    const statuses = ["Available","In Use","Reserved","Offline","Maintenance"];
+    statuses.forEach(s=>{
+        const opt = document.createElement("option");
+        opt.value = s;
+        opt.innerText = s;
+        if(s===pc.status) opt.selected=true;
+        statusSelect.appendChild(opt);
+    });
+
+    document.getElementById("modalMaintenance").innerHTML="<li>No maintenance records</li>";
+    new bootstrap.Modal(document.getElementById("pcModal")).show();
+}
+
+// Save status
+function saveStatus(){
+    const pcId = document.getElementById("modalId").innerText;
+    const newStatus = document.getElementById("modalStatusSelect").value;
+
+    fetch(`/api/update_computer_status/${pcId}/`, {
+        method:"POST",
+        headers: {
+            "Content-Type":"application/json",
+            "X-CSRFToken": getCSRFToken()
+        },
+        body: JSON.stringify({status: newStatus})
+    })
+    .then(res=>res.json())
+    .then(data=>{
+        if(data.error) alert(data.error);
+        else fetchComputers();
+    })
+    .catch(console.error);
+}
+
+function getCSRFToken(){
+    return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith("csrftoken="))?.split('=')[1];
+}
+
+fetchComputers();
+setInterval(fetchComputers, 5000);
+</script>
+{% endblock %}

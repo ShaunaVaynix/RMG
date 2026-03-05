@@ -1,0 +1,35 @@
+{% extends 'base2.html' %}
+{% block title %}PC Dashboard - PC Shop{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h3 class="mb-4">PC Dashboard - {{ pc.room }} Room</h3>
+
+    <div class="row">
+        {% for pc_item in room_pcs %}
+            <div class="col-md-3 mb-3">
+                <div class="card text-white 
+                    {% if pc_item.status == 'Available' %}bg-success
+                    {% elif pc_item.status == 'In Use' %}bg-danger
+                    {% elif pc_item.status == 'Reserved' %}bg-warning
+                    {% elif pc_item.status == 'Maintenance' %}bg-secondary
+                    {% elif pc_item.status == 'Offline' %}bg-dark
+                    {% else %}bg-light text-dark{% endif %}
+                    ">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">{{ pc_item.pc_id }}</h5>
+                        <p class="card-text">{{ pc_item.status }}</p>
+                        {% if pc_item.current_user %}
+                            <small>Current User: {{ pc_item.current_user.username }}</small>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="mt-4">
+        <h5>Session Ends At: {{ session.end_time|date:"H:i" }}</h5>
+    </div>
+</div>
+{% endblock %}

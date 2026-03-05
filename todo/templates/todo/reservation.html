@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Reservations{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid">
+
+    <!-- Page Title -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-calendar-check"></i> Reservations</h3>
+    </div>
+
+    <!-- Reservation Table Only (Admin) -->
+    <div class="card shadow">
+        <div class="card-body">
+
+            <h5 class="mb-3">All Reservations</h5>
+
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>PC Type</th>
+                            <th>Seat</th>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Hours</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reservationTable">
+                        {% for r in reservations %}
+                        <tr>
+                            <td>{{ r.user.username }}</td>
+                            <td>{{ r.pc_type }}</td>
+                            <td>{{ r.seat }}</td>
+                            <td>{{ r.start_time }}</td>
+                            <td>{{ r.end_time }}</td>
+                            <td>{{ r.total_hours }}</td>
+                            <td>₱{{ r.total_price }}</td>
+                            <td>
+                                <span class="badge {% if r.status == 'Pending' %}bg-warning{% elif r.status == 'Confirmed' %}bg-success{% else %}bg-secondary{% endif %}">
+                                    {{ r.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<script>
+// Optional: if you still want to fetch via API dynamically
+function loadReservations(){
+    fetch("{% url 'get_reservations_json' %}")
+    .then(response => response.json())
+    .then(data => {
+        let table = document.getElementById("reservationTable");
+        table.innerHTML = "";
+        data.forEach(r => {
+            table.innerHTML += `
+                <tr>
+                    <td>${r.user__username || 'N/A'}</td>
+                    <td>${r.pc_type}</td>
+                    <td>${r.seat}</td>
+                    <td>${formatDate(r.start_time)}</td>
+                    <td>${formatDate(r.end_time)}</td>
+                    <td>${r.total_hours || '0'}</td>
+                    <td>₱${r.total_price || '0'}</td>
+                    <td>
+                        <span class="badge ${r.status === 'Pending' ? 'bg-warning' : (r.status === 'Confirmed' ? 'bg-success' : 'bg-secondary')}">
+                            ${r.status}
+                        </span>
+                    </td>
+                </tr>
+            `;
+        });
+    });
+}
+
+function formatDate(dateString){
+    if(!dateString) return '';
+    return new Date(dateString).toLocaleString();
+}
+
+document.addEventListener("DOMContentLoaded", loadReservations);
+</script>
+
+{% endblock %}

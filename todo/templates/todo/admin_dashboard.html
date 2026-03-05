@@ -1,0 +1,239 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - PC Shop{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <h6>Total PCs</h6>
+            <h3 id="total">{{ total }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <h6>Available PCs</h6>
+            <h3 id="available">{{ available }}</h3>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5>Seat Arrangement</h5>
+        <button id="editButton" class="btn btn-info btn-sm">EDIT</button>
+    </div>
+    <div class="card-body">
+        <div id="grid" class="floor-grid"></div>
+    </div>
+</div>
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="editPanel">
+    <div class="offcanvas-header">
+        <h5>Edit Layout</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+        <h6>PC Stations</h6>
+        <div class="btn-group mb-3 w-100" id="pcButtons">
+            <button class="btn btn-outline-primary active" data-value="VIP">VIP</button>
+            <button class="btn btn-outline-primary" data-value="Gaming">Gaming</button>
+            <button class="btn btn-outline-primary" data-value="Regular">Regular</button>
+            <button class="btn btn-outline-primary" data-value="Streaming">Streaming</button>
+        </div>
+        <h6>Utilities</h6>
+        <div class="btn-group w-100" id="utilButtons">
+            <button class="btn btn-outline-secondary" data-value="walk">Walkway</button>
+            <button class="btn btn-outline-secondary" data-value="wall">Wall</button>
+            <button class="btn btn-outline-danger" data-value="delete">Delete</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.floor-grid {
+    display: grid;
+    grid-template-columns: repeat(20, 1fr);
+    gap: 2px;
+    min-height: 300px;
+}
+.tile {
+    border-radius: 4px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 11px;
+    cursor: pointer;
+    height: 30px;
+    border: 1px solid #495057;
+    transition: transform 0.1s;
+    color: #fff;
+}
+.tile:hover { transform: scale(1.05); }
+.available { background:#3b82f6; }      /* Blue */
+.inuse { background:#22c55e; }          /* Green */
+.reserved { background:#f59e0b; }       /* Orange */
+.maintenance { background:#6b7280; }    /* Gray */
+.offline { background:#111827; }        /* Dark */
+.walk { background:#475569; }
+.wall { background:#000814; }
+.empty { background:#1e293b; }
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const cols = 20, rows = 12;
+    let tiles = Array(cols*rows).fill("empty");
+    let computers = [];
+    let selectedPC = null;
+    let selectedUtil = null;
+
+    function initWalls() {
+        for (let x = 0; x < cols; x++) { tiles[x] = "wall"; tiles[(rows-1)*cols+x] = "wall"; }
+        for (let y = 0; y < rows; y++) { tiles[y*cols] = "wall"; tiles[y*cols+cols-1] = "wall"; }
+    }
+
+    // --------- Fetch PCs from DB ----------
+    function loadPCs() {
+        fetch("/api/get_computers_json/")
+        .then(res => res.json())
+        .then(data => {
+            tiles = Array(cols*rows).fill("empty");
+            initWalls();
+            computers = [];
+            for (let room in data) {
+                data[room].forEach(pc => {
+                    let pos = pc.position ?? tiles.findIndex(t => t === "empty");
+                    if(pos >= tiles.length || tiles[pos] !== "empty") pos = tiles.findIndex(t => t === "empty");
+                    if(pos !== -1) {
+                        // Map status to class
+                        let statusClass = pc.status.toLowerCase().replace(" ", "");
+                        tiles[pos] = { type: statusClass, label: pc.pc_id };
+                        computers.push({ ...pc });
+                    }
+                });
+            }
+            renderGrid();
+            updateDashboard();
+        }).catch(console.error);
+    }
+
+    function renderGrid() {
+        const grid = document.getElementById("grid");
+        grid.innerHTML = "";
+        tiles.forEach((tile, i) => {
+            const div = document.createElement("div");
+
+            if(typeof tile === "object") {
+                div.className = "tile " + tile.type;
+
+                // Show short label in tile only
+                let label = tile.label;
+                if(label.startsWith("VIP")) label = "V" + label.slice(3);
+                if(label.startsWith("Gaming")) label = "G" + label.slice(6);
+                if(label.startsWith("Regular")) label = "R" + label.slice(7);
+                if(label.startsWith("Streaming")) label = "S" + label.slice(9);
+                div.innerText = label;
+
+            } else {
+                div.className = "tile " + tile;
+            }
+
+            div.addEventListener("click", () => applyTile(i));
+            grid.appendChild(div);
+        });
+    }
+
+    // --------- Generate unique PC ID ----------
+    function generateLabel(type) {
+        let num = 1;
+        let newId = type + num;
+        while(computers.find(c => c.pc_id === newId)) {
+            num++;
+            newId = type + num;
+        }
+        return newId; // full ID for backend
+    }
+
+    // --------- Apply tile / add PC ----------
+    function applyTile(i) {
+        if(selectedPC && tiles[i] !== "wall" && typeof tiles[i] !== "object") {
+            const label = generateLabel(selectedPC);
+
+            fetch("/api/add_computer/", {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "X-CSRFToken": getCSRFToken() 
+                },
+                body: JSON.stringify({ 
+                    pc_id: label, 
+                    room: selectedPC, 
+                    specs:"Intel i7 | 32GB RAM | RTX3080", 
+                    status:"Available", 
+                    position: i 
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.error) alert(data.error);
+                loadPCs();
+            })
+            .catch(console.error);
+        }
+
+        // Utilities
+        if(selectedUtil === "walk" && tiles[i] !== "wall") { tiles[i] = "walk"; renderGrid(); }
+        if(selectedUtil === "wall") { tiles[i] = "wall"; renderGrid(); }
+        if(selectedUtil === "delete" && typeof tiles[i] === "object") {
+            fetch(`/api/delete_computer/${tiles[i].label}/`, { method: "DELETE", headers: { "X-CSRFToken": getCSRFToken() }} )
+            .then(res => res.json())
+            .then(data => loadPCs());
+        }
+
+        updateDashboard();
+    }
+
+    // --------- Dashboard counts ----------
+    function updateDashboard() {
+        const totalCount = tiles.filter(t => typeof t === "object").length;
+        const availableCount = computers.filter(c => c.status === "Available").length;
+        document.getElementById("total").innerText = totalCount;
+        document.getElementById("available").innerText = availableCount;
+    }
+
+    function getCSRFToken() {
+        return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith("csrftoken="))?.split('=')[1];
+    }
+
+    // --------- PC buttons ----------
+    document.getElementById("pcButtons").onclick = e => {
+        if (e.target.tagName === "BUTTON") {
+            selectedPC = e.target.dataset.value;
+            selectedUtil = null;
+            selectButton("pcButtons", selectedPC);
+            selectButton("utilButtons", "");
+        }
+    }
+
+    // --------- Utility buttons ----------
+    document.getElementById("utilButtons").onclick = e => {
+        if (e.target.tagName === "BUTTON") {
+            selectedUtil = e.target.dataset.value;
+            selectedPC = null;
+            selectButton("utilButtons", selectedUtil);
+            selectButton("pcButtons", "");
+        }
+    }
+
+    function selectButton(groupId, value) {
+        document.querySelectorAll(`#${groupId} button`).forEach(btn => btn.classList.toggle("active", btn.dataset.value === value));
+    }
+
+    const offcanvas = new bootstrap.Offcanvas(document.getElementById('editPanel'));
+    document.getElementById("editButton").addEventListener("click", () => offcanvas.show());
+
+    initWalls();
+    loadPCs();
+});
+</script>
+{% endblock %}

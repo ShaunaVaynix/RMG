@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Users - PC Shop{% endblock %}
+
+{% block content %}
+<div class="d-flex">
+  <div class="flex-grow-1 p-4">
+    <h3>Users</h3>
+    <div class="table-responsive">
+      <table class="table table-striped table-bordered">
+        <thead class="table-dark">
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Balance</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr>
+            <td>{{ user.id }}</td>
+            <td>{{ user.first_name }}</td>
+            <td>{{ user.username }}</td>
+            <td>{{ user.userprofile.balance }}</td>
+            <td>{{ user.userprofile.status }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

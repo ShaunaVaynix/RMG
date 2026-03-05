@@ -1,0 +1,245 @@
+{% extends "base1.html" %}
+{% block title %}Reservations{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid">
+
+    <!-- Page Title -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-calendar-check"></i> Reservations</h3>
+    </div>
+
+    <!-- Reservation Form -->
+    <div class="card shadow mb-4">
+        <div class="card-body">
+
+            <h5 class="mb-3">Create Reservation</h5>
+
+            <div class="row g-3">
+
+                <div class="col-md-3">
+                    <label class="form-label">PC Type</label>
+                    <select id="pc_type" class="form-select">
+                        <option value="VIP">VIP</option>
+                        <option value="Gaming">Gaming</option>
+                        <option value="Regular">Regular</option>
+                        <option value="Streaming">Streaming</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Seat (PC ID)</label>
+                    <select id="seat" class="form-select">
+                        <option value="">Select Seat</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Start Time</label>
+                    <input type="datetime-local" id="start_time" class="form-control">
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">End Time</label>
+                    <input type="datetime-local" id="end_time" class="form-control">
+                </div>
+
+            </div>
+
+            <div class="mt-4">
+                <button onclick="addReservation()" class="btn btn-info w-100">
+                    <i class="bi bi-plus-circle"></i> Reserve Now
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Reservation Table -->
+    <div class="card shadow">
+        <div class="card-body">
+
+            <h5 class="mb-3">Reservation List</h5>
+
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>PC Type</th>
+                            <th>Seat</th>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Hours</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reservationTable"></tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<script>
+
+let allComputers = {};
+
+// ===================== LOAD COMPUTERS =====================
+function loadComputers(){
+    fetch("/api/get_computers_json/")
+    .then(res => res.json())
+    .then(data => {
+        allComputers = data;
+        filterSeats();
+    })
+    .catch(err => console.error(err));
+}
+
+// ===================== FILTER SEATS =====================
+function filterSeats(){
+    const type = document.getElementById("pc_type").value;
+    const seatSelect = document.getElementById("seat");
+
+    seatSelect.innerHTML = '<option value="">Select Seat</option>';
+
+    if(allComputers[type]){
+        allComputers[type].forEach(pc => {
+            if(pc.status === "Available"){
+                seatSelect.innerHTML += `
+                    <option value="${pc.pc_id}">
+                        ${pc.pc_id}
+                    </option>
+                `;
+            }
+        });
+    }
+}
+
+// When PC Type changes
+document.getElementById("pc_type").addEventListener("change", filterSeats);
+
+// ===================== LOAD RESERVATIONS =====================
+function loadReservations(){
+    fetch("{% url 'get_reservations_json' %}")
+    .then(response => response.json())
+    .then(data => {
+
+        let table = document.getElementById("reservationTable");
+        table.innerHTML = "";
+
+        data.forEach(r => {
+
+            let statusHTML = "";
+
+            if(r.status === "Pending" || r.status === "PENDING"){
+                statusHTML = `
+                    <span class="badge bg-warning text-dark">
+                        PENDING
+                    </span>
+                `;
+            }
+            else if(r.status === "SUCCESS"){
+                statusHTML = `
+                    <span class="badge bg-success">
+                        SUCCESS
+                    </span>
+                `;
+            }
+            else{
+                statusHTML = `
+                    <span class="badge bg-secondary">
+                        ${r.status}
+                    </span>
+                `;
+            }
+
+            table.innerHTML += `
+                <tr>
+                    <td>${r.user__username || 'N/A'}</td>
+                    <td>${r.pc_type}</td>
+                    <td>${r.seat}</td>
+                    <td>${formatDate(r.start_time)}</td>
+                    <td>${formatDate(r.end_time)}</td>
+                    <td>${r.total_hours || '0'}</td>
+                    <td>₱${r.total_price || '0'}</td>
+                    <td>${statusHTML}</td>
+                </tr>
+            `;
+        });
+
+    });
+}
+
+// ===================== ADD RESERVATION =====================
+function addReservation(){
+
+    const seat = document.getElementById("seat").value;
+
+    if(!seat){
+        Swal.fire({
+            icon: "error",
+            title: "Please select a seat."
+        });
+        return;
+    }
+
+    const data = {
+        pc_type: document.getElementById("pc_type").value,
+        seat: seat,
+        start_time: document.getElementById("start_time").value,
+        end_time: document.getElementById("end_time").value
+    };
+
+    fetch("{% url 'add_reservation' %}", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+
+        if(result.error){
+            Swal.fire({
+                icon: "error",
+                title: result.error
+            });
+        } else {
+            Swal.fire({
+                icon: "success",
+                title: result.message,
+                timer: 2000,
+                showConfirmButton: false
+            });
+
+            loadReservations();
+            loadComputers(); // refresh seats after reserve
+        }
+
+    });
+
+}
+
+// ===================== FORMAT DATE =====================
+function formatDate(dateString){
+    if(!dateString) return '';
+    let d = new Date(dateString);
+    return d.toLocaleString();
+}
+
+// ===================== INIT =====================
+document.addEventListener("DOMContentLoaded", function(){
+    loadReservations();
+    loadComputers();
+});
+
+</script>
+
+{% endblock %}

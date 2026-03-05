@@ -1,0 +1,119 @@
+{% extends 'base1.html' %}
+{% block title %}Dashboard - User Shop{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <h6>Available PCs</h6>
+            <h3 id="available">{{ available }}</h3>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <h5>Seat Arrangement</h5>
+    </div>
+    <div class="card-body">
+        <div id="grid" class="floor-grid"></div>
+    </div>
+</div>
+
+<style>
+.floor-grid {
+    display: grid;
+    grid-template-columns: repeat(20, 1fr);
+    gap: 2px;
+    min-height: 300px;
+}
+.tile {
+    border-radius: 4px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 11px;
+    height: 30px;
+    border: 1px solid #495057;
+    color: #fff;
+}
+.available { background:#3b82f6; }      /* Blue */
+.inuse { background:#22c55e; }          /* Green */
+.reserved { background:#f59e0b; }       /* Orange */
+.maintenance { background:#6b7280; }    /* Gray */
+.offline { background:#111827; }        /* Dark */
+.VIP { background:#f59e0b; }
+.Gaming { background:#3b82f6; }
+.Streaming { background:#10b981; }
+.Regular { background:#9ca3af; color:#000; }
+.walk { background:#475569; }
+.wall { background:#000814; }
+.empty { background:#1e293b; }
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const cols = 20, rows = 12;
+    let tiles = Array(cols*rows).fill("empty");
+
+    function initWalls() {
+        for (let x = 0; x < cols; x++) { tiles[x] = "wall"; tiles[(rows-1)*cols+x] = "wall"; }
+        for (let y = 0; y < rows; y++) { tiles[y*cols] = "wall"; tiles[y*cols+cols-1] = "wall"; }
+    }
+
+    function loadPCs() {
+        fetch("/api/get_computers_json/")
+        .then(res => res.json())
+        .then(data => {
+            tiles = Array(cols*rows).fill("empty");
+            initWalls();
+
+            for (let room in data) {
+                data[room].forEach(pc => {
+                    let pos = pc.position ?? tiles.findIndex(t => t === "empty");
+                    if(pos >= tiles.length || tiles[pos] !== "empty") pos = tiles.findIndex(t => t === "empty");
+                    if(pos !== -1) {
+                        // Short label lang (V1, G2, R3, S4)
+                        const prefix = { VIP:"V", Gaming:"G", Regular:"R", Streaming:"S" };
+                        const number = pc.pc_id.replace(/\D/g,''); // extract number
+                        const label = prefix[pc.room] + number;
+
+                        // Gamitin ang status ng PC para sa kulay
+                        let statusClass = pc.status.toLowerCase().replace(" ", "");
+                        tiles[pos] = { type: statusClass, label: label, room: pc.room };
+                    }
+                });
+            }
+            renderGrid();
+            updateDashboard();
+        }).catch(console.error);
+    }
+
+    function renderGrid() {
+        const grid = document.getElementById("grid");
+        grid.innerHTML = "";
+        tiles.forEach(tile => {
+            const div = document.createElement("div");
+            if(typeof tile === "object") {
+                div.className = "tile " + tile.type;
+                div.innerText = tile.label; // Short label lang ang lalabas
+            } else {
+                div.className = "tile " + tile;
+            }
+            grid.appendChild(div);
+        });
+    }
+
+    function updateDashboard() {
+        const availableCount = tiles.filter(t => typeof t === "object" && t.type === "available").length;
+        document.getElementById("available").innerText = availableCount;
+    }
+
+    initWalls();
+    loadPCs();
+
+    // Auto refresh every 10 sec para laging updated
+    setInterval(loadPCs, 10000);
+});
+</script>
+{% endblock %}
